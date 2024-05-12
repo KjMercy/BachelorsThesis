@@ -1,0 +1,4 @@
+EMD-signal==1.6.0 #https://pyemd.readthedocs.io/en/latest/intro.html
+numpy==1.26.4
+scipy==1.13.0
+pygad==3.3.1

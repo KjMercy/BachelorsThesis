@@ -102,36 +102,57 @@ class SignalCleaner:
                 self.RHO[i]
             )
 
-    def fitness(self, ga_instance, solution, solution_idx, i):
+    def i_eth_fitness(self, signal_index):
+        """Here we 'generate' the fitness function of the specific signal"""
 
-        boundary = self.j_boundary[i]
-        sum_signal_dominant_imfs = np.sum(self.imfs[i, boundary:], axis=0)
+        def fitness(ga_instance, solution, solution_idx):
 
-        thresholded_imfs = self.__hard_threshold(
-            self.imfs[i, :boundary],
-            self.__calc_single_signal_thresholds(
+            i = signal_index
+            boundary = self.j_boundary[i]
+            sum_signal_dominant_imfs = np.sum(self.imfs[i, boundary:], axis=0)
+
+            thresholded_imfs = self.__hard_threshold(
                 self.imfs[i, :boundary],
-                solution[0], # Gene reppresenting C
-                solution[1], # Gene reppresenting BETA
-                solution[2] # Gene reppresenting RHO
+                self.__calc_single_signal_thresholds(
+                    self.imfs[i, :boundary],
+                    solution[0], # Gene reppresenting C
+                    solution[1], # Gene reppresenting BETA
+                    solution[2] # Gene reppresenting RHO
+                )
             )
-        )
-        sum_thresholded_imfs = np.sum(thresholded_imfs, axis=0)
+            sum_thresholded_imfs = np.sum(thresholded_imfs, axis=0)
 
-        # x: noisy ECG signal
-        x = np.sum(self.imfs[i, :], axis=0) + self.res[i]
+            # x: noisy ECG signal
+            x = np.sum(self.imfs[i, :], axis=0) + self.res[i]
 
-        # y: original ECG signal ---> TODO: qual'è la differenza tra x e y?
-        y = self.signals[i].y # !!! Credo sia sbagliato, siccome sarebbe uguale a x
+            # y: original ECG signal ---> TODO: qual'è la differenza tra x e y?
+            y = self.signals[i].y # !!! Credo sia sbagliato, siccome sarebbe uguale a x
 
-        # y_pred: reconstructed denoised ECG signal calculated with
-        y_pred =  sum_thresholded_imfs + sum_signal_dominant_imfs + self.res[i]
+            # y_pred: reconstructed denoised ECG signal calculated with
+            y_pred =  sum_thresholded_imfs + sum_signal_dominant_imfs + self.res[i]
 
 
-        return 10*np.log10( np.sum(np.square(x - y)) / np.sum(np.square(y_pred - y)) )
+            return 10*np.log10( np.sum(np.square(x - y)) / np.sum(np.square(y_pred - y)) )
+        
+        return fitness
 
     def GA(self):
-        pass
+        for i, signal in enumerate(self.signals):
+
+            # We get the fitness function of the current signal
+            fitness = self.i_eth_fitness(i)
+            ga = pygad.GA(
+                num_generations=self.gen_per_signal,
+                num_parents_mating=self.parents_per_signal,
+                num_genes=3, # i.e. C, BETA and RHO 
+                mutation_percent_genes=self.mutation_percent,
+                fitness_func=fitness
+            )
+            ga.run()
+            solution, solution_fitness, solution_idx = ga.best_solution()
+            self.C[i] = solution[0]
+            self.BETA[i] = solution[1]
+            self.RHO[i] = solution[2]
 
     def run(self, soft_thresholding = True):
         self.decompose()
