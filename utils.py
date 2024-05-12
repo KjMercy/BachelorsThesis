@@ -6,7 +6,14 @@ import pygad
 
 class SignalCleaner:
 
-    def __init__(self, signal_list, ensemble):
+    def __init__(
+            self, 
+            signal_list, 
+            ensemble, 
+            generations_per_signal, 
+            parents_per_signal, 
+            mutation_percent
+            ):
         
         if ensemble:
             self.decomposer = EEMD()
@@ -16,6 +23,10 @@ class SignalCleaner:
         self.signals = signal_list
         # each element of signals contains: 
         # (1) the signal and (2 )the time domain
+
+        self.gen_per_signal = generations_per_signal
+        self.parents_per_signal = parents_per_signal
+        self.mutation_percent = mutation_percent
 
     def decompose(self):
         for i, signal in enumerate(self.signals):
