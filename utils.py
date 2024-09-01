@@ -4,7 +4,25 @@ import numpy.linalg as LG
 from scipy.special import rel_entr as KL_dist
 import pygad
 
+def add_AWGN(signal, desired_SNR):
+    noise_power = np.var(signal) / (10 ** (desired_SNR/10))
+    noise = np.random.normal(0, np.sqrt(noise_power), len(signal))
+
+    return signal + noise
+
 class SignalCleaner:
+    """Class for the denoising of a signal using EEMD and GA
+
+    Denoising of a signal by calculating it's IMFs (Intrinsic mode functions)
+    through either EEMD (Ensemble Empirical Mode Decomposition) or EMD (Ensemble 
+    Empirical Mode Decomposition). Through the Kullback-Leibler divergence, it is
+    calculated the boundary IMF that stands between the signal-dominant IMFs and
+    the noise-dominant IMFs. A GA (Genetic Algorithm) based adaptive thresholding 
+    is applied to the noise-dominant set of IMFs. In the end, the denoised 
+    noise-dominant IMFs are added to the signal-dominant IMFs to produce the clean signal
+
+    """
+
 
     def __init__(
             self, 
@@ -14,6 +32,20 @@ class SignalCleaner:
             parents_per_signal, 
             mutation_percent
             ):
+        
+        """
+        Attributes:
+            signal_list: A list of the signals to which to apply the denoising
+            ensemble: boolean to indicate whether to use ensemgle or standard 
+            empirical mode decompisotion
+            generations_per_signal: integer indicating the number of generations for
+            the calculating of the thresholds using the GA
+            parents_per_signal: integer indicating the number of parents for the 
+            calculating of the thresholds using the GA
+            mutation_percent: float indicating the probability of mutation of the of
+            a gene (here parameter for calculating the threshold)
+        
+        """
         
         if ensemble:
             self.decomposer = EEMD()
@@ -29,6 +61,7 @@ class SignalCleaner:
         self.mutation_percent = mutation_percent
 
     def decompose(self):
+        """Decomposes the signal into multiple IMFs using the specified decomposer"""
         for i, signal in enumerate(self.signals):
             self.decomposer.eemd(signal.y, signal.t)
             self.imfs[i], self.res[i] = self.decomposer.get_imfs_and_residue()
@@ -37,13 +70,13 @@ class SignalCleaner:
             # res[i] is the residual of the decomposition of the i-eth signal
 
     def __calc_distances(self, metric):
-        """Calculating distances between the signal and it's IMFs"""
+        """Calculates distances between the signal and it's IMFs"""
         
         for i, signal in enumerate(self.signals):
             self.distances[i] = [metric(signal.y, imf) for imf in self.imfs[i]]
 
     def imf_selection(self):
-        """Separating the IMFs into one noise dominant group and one signal 
+        """Separates the IMFs into one noise dominant group and one signal 
         dominant group by calculating the index of the boundary imf for each signal"""
 
         self.__calc_distances(KL_dist)
@@ -53,6 +86,9 @@ class SignalCleaner:
 
 
     def __hard_threshold(self, imfs, thresholds):
+        """Applies hard thresholding to the specified imfs using the thresholds
+        passed as arguments"""
+
         res = []
         for i, imf in enumerate(imfs):
             if LG.norm(imf) > thresholds[i]:
@@ -62,6 +98,9 @@ class SignalCleaner:
         return res
     
     def __soft_threshold(self, imfs, thresholds):
+        """Applies soft thresholding to the specified imfs using the thresholds
+        passed as arguments"""
+
         res = []
         for i, imf in enumerate(imfs):
             if LG.norm(imf) > thresholds[i]:
@@ -71,6 +110,9 @@ class SignalCleaner:
         return res
 
     def apply_thresholding(self, soft = False):
+        """Applies thresholding to all the noise-dominant IMF groups (i.e the noise
+        dominant IMFs for each signal). If soft is True, it applies soft-thresholding"""
+
         for i, _ in enumerate(self.signals):
 
             if soft:
@@ -89,16 +131,12 @@ class SignalCleaner:
         energy = []
         energy.append( np.sum(np.square(imfs[0])) )
         for k in range(1, len(imfs)):
-            # solution[1] corresponds to BETA
             energy.append( (energy[0]/BETA) / (RHO**(-k)) )
 
         thresholds = []
-        # TODO: capire cosa deve essere "n" (--> nel paper c'è scritto 'number
-        # of samples in the signal being subjected to noise removal')
-        # Per adesso supporro sia il numero di IMF soggette a thresholding
-        n = len(imfs)
-        for _ in imfs:
-            thresholds.append( C*np.sqrt(energy[0]*2*np.log(n)) )
+        n = len(imfs) #number of samples in the signal being subjected to noise removal
+        for i in range(n):
+            thresholds.append( C*np.sqrt(energy[i]*2*np.log(n)) )
 
         return thresholds
 
