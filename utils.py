@@ -119,12 +119,12 @@ class SignalCleaner:
         for i, _ in enumerate(self.signals):
 
             if soft:
-                self.tresholded_imfs[i] = self.__soft_threshold(
+                self.thresholded_imfs[i] = self.__soft_threshold(
                     self.imfs[i, :self.j_boundary[i]],
                     self.thresholds[i]
                     )
             else:
-                self.tresholded_imfs[i] = self.__hard_threshold(
+                self.thresholded_imfs[i] = self.__hard_threshold(
                     self.imfs[i, :self.j_boundary[i]],
                     self.thresholds[i]
                     )
@@ -143,11 +143,11 @@ class SignalCleaner:
 
         return thresholds
 
-    def calc_tresholds(self):
+    def calc_thresholds(self):
         """Calculate thresholds to be used for imf 'cleaning' """
 
         for i, _ in enumerate(self.signals):
-            self.tresholds[i] = self.__calc_single_signal_thresholds(
+            self.thresholds[i] = self.__calc_single_signal_thresholds(
                 self.imfs[i, :self.j_boundary[i]],
                 self.C[i], 
                 self.BETA[i], 
@@ -209,11 +209,22 @@ class SignalCleaner:
             self.BETA[i] = solution[1]
             self.RHO[i] = solution[2]
 
+    def predict(self):
+        
+        for i, signal in enumerate(self.signals):
+                         
+            sum_thresholded_imfs = np.sum(self.thresholded_imfs[i], axis=0)
+            boundary = self.j_boundary[i]
+            sum_signal_dominant_imfs = np.sum(self.imfs[i, boundary:], axis=0)
+
+            self.y_pred[i] = sum_thresholded_imfs + sum_signal_dominant_imfs + self.res[i]
+
     def run(self, soft_thresholding = True):
         self.decompose()
         self.imf_selection()
 
         self.GA()
-        self.calc_tresholds()
+        self.calc_thresholds()
         self.apply_thresholding(soft_thresholding)
+        self.predict()
         
