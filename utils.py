@@ -30,7 +30,8 @@ class SignalCleaner:
             ensemble, 
             generations_per_signal, 
             parents_per_signal, 
-            mutation_percent
+            mutation_percent,
+            SNR_input
             ):
         
         """
@@ -44,6 +45,7 @@ class SignalCleaner:
             calculating of the thresholds using the GA
             mutation_percent: float indicating the probability of mutation of the of
             a gene (here parameter for calculating the threshold)
+            SNR_input: float indicating the input Signal to Noise Ratio
         
         """
         
@@ -59,6 +61,7 @@ class SignalCleaner:
         self.gen_per_signal = generations_per_signal
         self.parents_per_signal = parents_per_signal
         self.mutation_percent = mutation_percent
+        self.SNR_input = SNR_input
 
     def decompose(self):
         """Decomposes the signal into multiple IMFs using the specified decomposer"""
@@ -155,6 +158,8 @@ class SignalCleaner:
         """Here we 'generate' the fitness function of the specific signal"""
 
         def fitness(ga_instance, solution, solution_idx):
+            """The Signal To Noise Improvement (SNR improvement) is used as
+            an objective function, or fitness"""
 
             i = signal_index
             boundary = self.j_boundary[i]
@@ -172,10 +177,11 @@ class SignalCleaner:
             sum_thresholded_imfs = np.sum(thresholded_imfs, axis=0)
 
             # x: noisy ECG signal
-            x = np.sum(self.imfs[i, :], axis=0) + self.res[i]
+            # x = np.sum(self.imfs[i, :], axis=0) + self.res[i]
+            x = add_AWGN(self.signals[i].y, self.SNR_input)
 
-            # y: original ECG signal ---> TODO: qual'è la differenza tra x e y?
-            y = self.signals[i].y # !!! Credo sia sbagliato, siccome sarebbe uguale a x
+            # y: original ECG signal
+            y = self.signals[i].y 
 
             # y_pred: reconstructed denoised ECG signal calculated with
             y_pred =  sum_thresholded_imfs + sum_signal_dominant_imfs + self.res[i]
