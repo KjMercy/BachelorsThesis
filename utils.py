@@ -10,6 +10,12 @@ def add_AWGN(signal, desired_SNR):
 
     return signal + noise
 
+def SNR_improvement(noisy_signal, signal, predicted):
+    return 10*np.log10( np.sum(np.square(noisy_signal - signal)) / np.sum(np.square(predicted - signal)) )
+
+def signal_MSE(signal, predicted):
+    return np.mean(np.square(predicted - signal))
+
 class SignalCleaner:
     """Class for the denoising of a signal using EEMD and GA
 
@@ -187,7 +193,8 @@ class SignalCleaner:
             y_pred =  sum_thresholded_imfs + sum_signal_dominant_imfs + self.res[i]
 
 
-            return 10*np.log10( np.sum(np.square(x - y)) / np.sum(np.square(y_pred - y)) )
+            # return 10*np.log10( np.sum(np.square(x - y)) / np.sum(np.square(y_pred - y)) )
+            return SNR_improvement(x, y, y_pred)
         
         return fitness
 
