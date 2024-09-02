@@ -68,6 +68,8 @@ class SignalCleaner:
 
     def decompose(self):
         """Decomposes the signal into multiple IMFs using the specified decomposer"""
+        self.imfs = [None]*len(self.signals)
+        self.res = [None]*len(self.signals)
         for i, signal in enumerate(self.signals):
             self.decomposer.eemd(signal, list( range(len(signal)) ))
             self.imfs[i], self.res[i] = self.decomposer.get_imfs_and_residue()
@@ -78,6 +80,7 @@ class SignalCleaner:
     def __calc_distances(self, metric):
         """Calculates distances between the signal and it's IMFs"""
         
+        self.distances = [None]*len(self.signals)
         for i, signal in enumerate(self.signals):
             self.distances[i] = [metric(signal, imf) for imf in self.imfs[i]]
 
@@ -87,6 +90,7 @@ class SignalCleaner:
 
         self.__calc_distances(KL_dist)
 
+        self.j_boundary = [None]*len(self.signals)
         for i, dist in enumerate(self.distances):
             self.j_boundary[i] = np.argmax(dist) + 1
 
@@ -119,16 +123,17 @@ class SignalCleaner:
         """Applies thresholding to all the noise-dominant IMF groups (i.e the noise
         dominant IMFs for each signal). If soft is True, it applies soft-thresholding"""
 
+        self.thresholded_imfs = [None]*len(self.signals)
         for i, _ in enumerate(self.signals):
 
             if soft:
                 self.thresholded_imfs[i] = self.__soft_threshold(
-                    self.imfs[i, :self.j_boundary[i]],
+                    self.imfs[i][:self.j_boundary[i]],
                     self.thresholds[i]
                     )
             else:
                 self.thresholded_imfs[i] = self.__hard_threshold(
-                    self.imfs[i, :self.j_boundary[i]],
+                    self.imfs[i][:self.j_boundary[i]],
                     self.thresholds[i]
                     )
 
@@ -143,15 +148,17 @@ class SignalCleaner:
         n = len(imfs) #number of samples in the signal being subjected to noise removal
         for i in range(n):
             thresholds.append( C*np.sqrt(energy[i]*2*np.log(n)) )
-
+            #print("Threshold: ", thresholds[i], "sqrt arg: ",energy[i]*2*np.log(n), "energy: ", energy[i], "C", C, "BETA", BETA, "RHO", RHO)
+            
         return thresholds
 
     def calc_thresholds(self):
         """Calculate thresholds to be used for imf 'cleaning' """
 
+        self.thresholds = [None]*len(self.signals)
         for i, _ in enumerate(self.signals):
             self.thresholds[i] = self.__calc_single_signal_thresholds(
-                self.imfs[i, :self.j_boundary[i]],
+                self.imfs[i][:self.j_boundary[i]],
                 self.C[i], 
                 self.BETA[i], 
                 self.RHO[i]
@@ -166,12 +173,13 @@ class SignalCleaner:
 
             i = signal_index
             boundary = self.j_boundary[i]
-            sum_signal_dominant_imfs = np.sum(self.imfs[i, boundary:], axis=0)
+            #sum_signal_dominant_imfs = np.sum(self.imfs[i, boundary:], axis=0)
+            sum_signal_dominant_imfs = np.sum(self.imfs[i][boundary:], axis=0)
 
             thresholded_imfs = self.__hard_threshold(
-                self.imfs[i, :boundary],
+                self.imfs[i][:boundary],
                 self.__calc_single_signal_thresholds(
-                    self.imfs[i, :boundary],
+                    self.imfs[i][:boundary],
                     solution[0], # Gene reppresenting C
                     solution[1], # Gene reppresenting BETA
                     solution[2] # Gene reppresenting RHO
@@ -181,10 +189,10 @@ class SignalCleaner:
 
             # x: noisy ECG signal
             # x = np.sum(self.imfs[i, :], axis=0) + self.res[i]
-            x = add_AWGN(self.signals[i].y, self.SNR_input)
+            x = add_AWGN(self.signals[i], self.SNR_input)
 
             # y: original ECG signal
-            y = self.signals[i].y 
+            y = self.signals[i] 
 
             # y_pred: reconstructed denoised ECG signal calculated with
             y_pred =  sum_thresholded_imfs + sum_signal_dominant_imfs + self.res[i]
@@ -196,6 +204,9 @@ class SignalCleaner:
         return fitness
 
     def GA(self):
+        self.C = [None]*len(self.signals)
+        self.BETA = [None]*len(self.signals)
+        self.RHO = [None]*len(self.signals)
         for i, signal in enumerate(self.signals):
 
             # We get the fitness function of the current signal
@@ -205,21 +216,26 @@ class SignalCleaner:
                 num_parents_mating=self.parents_per_signal,
                 num_genes=3, # i.e. C, BETA and RHO 
                 mutation_percent_genes=self.mutation_percent,
-                fitness_func=fitness
+                fitness_func=fitness,
+                sol_per_pop=5,
+                init_range_low=0.1,
+                random_mutation_min_val=0.1
             )
             ga.run()
             solution, solution_fitness, solution_idx = ga.best_solution()
             self.C[i] = solution[0]
             self.BETA[i] = solution[1]
             self.RHO[i] = solution[2]
+            #ga.plot_fitness()
 
     def predict(self):
         
+        self.y_pred = [None]*len(self.signals)
         for i, signal in enumerate(self.signals):
                          
             sum_thresholded_imfs = np.sum(self.thresholded_imfs[i], axis=0)
             boundary = self.j_boundary[i]
-            sum_signal_dominant_imfs = np.sum(self.imfs[i, boundary:], axis=0)
+            sum_signal_dominant_imfs = np.sum(self.imfs[i][boundary:], axis=0)
 
             self.y_pred[i] = sum_thresholded_imfs + sum_signal_dominant_imfs + self.res[i]
 
