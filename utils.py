@@ -61,9 +61,6 @@ class SignalCleaner:
             self.decomposer = EMD()
 
         self.signals = signal_list
-        # each element of signals contains: 
-        # (1) the signal and (2 )the time domain
-
         self.gen_per_signal = generations_per_signal
         self.parents_per_signal = parents_per_signal
         self.mutation_percent = mutation_percent
@@ -72,7 +69,7 @@ class SignalCleaner:
     def decompose(self):
         """Decomposes the signal into multiple IMFs using the specified decomposer"""
         for i, signal in enumerate(self.signals):
-            self.decomposer.eemd(signal.y, signal.t)
+            self.decomposer.eemd(signal, list( range(len(signal)) ))
             self.imfs[i], self.res[i] = self.decomposer.get_imfs_and_residue()
 
             # imfs[i] is a list of the imfs of the i-eth signal
@@ -82,7 +79,7 @@ class SignalCleaner:
         """Calculates distances between the signal and it's IMFs"""
         
         for i, signal in enumerate(self.signals):
-            self.distances[i] = [metric(signal.y, imf) for imf in self.imfs[i]]
+            self.distances[i] = [metric(signal, imf) for imf in self.imfs[i]]
 
     def imf_selection(self):
         """Separates the IMFs into one noise dominant group and one signal 
