@@ -145,8 +145,8 @@ class SignalCleaner:
             energy.append( (energy[0]/BETA) / (RHO**(-k)) )
 
         thresholds = []
-        n = len(imfs) #number of samples in the signal being subjected to noise removal
-        for i in range(n):
+        n = len(imfs[0]) #number of samples in the signal being subjected to noise removal
+        for i in range(len(imfs)):
             thresholds.append( C*np.sqrt(energy[i]*2*np.log(n)) )
             #print("Threshold: ", thresholds[i], "sqrt arg: ",energy[i]*2*np.log(n), "energy: ", energy[i], "C", C, "BETA", BETA, "RHO", RHO)
             
