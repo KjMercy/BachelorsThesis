@@ -217,9 +217,10 @@ class SignalCleaner:
                 num_genes=3, # i.e. C, BETA and RHO 
                 mutation_percent_genes=self.mutation_percent,
                 fitness_func=fitness,
-                sol_per_pop=5,
-                init_range_low=0.1,
-                random_mutation_min_val=0.1
+                sol_per_pop=10,
+                #init_range_low=0.1,
+                #random_mutation_min_val=0.1,
+                gene_space=[ {'low': 0.5, 'high': 1.0},{'low': 0.5, 'high': 1.5},{'low': 1.5, 'high': 3.0} ]
             )
             ga.run()
             solution, solution_fitness, solution_idx = ga.best_solution()
