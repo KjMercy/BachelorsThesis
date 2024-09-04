@@ -60,7 +60,13 @@ class SignalCleaner:
         else:
             self.decomposer = EMD()
 
-        self.signals = signal_list
+        self.original_signals = signal_list # which will act as ground truth
+        self.signals = [None]*len(signal_list) # which will be the signals to be cleaned
+        
+        # AWGN is added to each signal
+        for i, sig in self.original_signals:
+            self.signals[i] = add_AWGN(signal_list[i], self.SNR_input)
+        
         self.gen_per_signal = generations_per_signal
         self.parents_per_signal = parents_per_signal
         self.mutation_percent = mutation_percent
@@ -188,11 +194,12 @@ class SignalCleaner:
             sum_thresholded_imfs = np.sum(thresholded_imfs, axis=0)
 
             # x: noisy ECG signal
-            # x = np.sum(self.imfs[i, :], axis=0) + self.res[i]
-            x = add_AWGN(self.signals[i], self.SNR_input)
+            #x = add_AWGN(self.signals[i], self.SNR_input) TODO: delete this line if the one below works
+            x = self.signals[i]
 
             # y: original ECG signal
-            y = self.signals[i] 
+            # y = self.signals[i] TODO: delete this line if the one below works
+            y = self.original_signals[i]
 
             # y_pred: reconstructed denoised ECG signal calculated with
             y_pred =  sum_thresholded_imfs + sum_signal_dominant_imfs + self.res[i]
