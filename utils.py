@@ -63,14 +63,15 @@ class SignalCleaner:
         self.original_signals = signal_list # which will act as ground truth
         self.signals = [None]*len(signal_list) # which will be the signals to be cleaned
         
+        self.SNR_input = SNR_input
+        
         # AWGN is added to each signal
-        for i, sig in self.original_signals:
+        for i, sig in enumerate(self.original_signals):
             self.signals[i] = add_AWGN(signal_list[i], self.SNR_input)
         
         self.gen_per_signal = generations_per_signal
         self.parents_per_signal = parents_per_signal
         self.mutation_percent = mutation_percent
-        self.SNR_input = SNR_input
 
     def decompose(self):
         """Decomposes the signal into multiple IMFs using the specified decomposer"""
