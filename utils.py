@@ -2,6 +2,7 @@ from PyEMD import EMD, EEMD
 import numpy  as np
 import numpy.linalg as LG
 from scipy.special import rel_entr as KL_dist
+from scipy.stats import gaussian_kde
 import pygad
 
 def add_AWGN(signal, desired_SNR):
@@ -15,6 +16,13 @@ def SNR_improvement(noisy_signal, signal, predicted):
 
 def signal_MSE(signal, predicted):
     return np.mean(np.square(predicted - signal))
+
+def estimate_pdf(signal_data, num_bins=50, bandwidth=0.1,):
+    """Function to estimate the PDFs of the signals"""
+    kde = gaussian_kde(signal_data, bw_method=bandwidth)
+    bin_centers = np.linspace(signal_data.min(), signal_data.max(), num_bins)
+    pdf = kde(bin_centers)
+    return pdf
 
 class SignalCleaner:
     """Class for the denoising of a signal using EEMD and GA
@@ -68,11 +76,16 @@ class SignalCleaner:
         # AWGN is added to each signal
         for i, sig in enumerate(self.original_signals):
             self.signals[i] = add_AWGN(signal_list[i], self.SNR_input)
+            
+        # The density functions of the signals are computed    
+        self.signal_pdfs = [None]*len(self.signals)
+        for i, sig in enumerate(self.signals):
+            self.signal_pdfs[i] = estimate_pdf(sig)
         
         self.gen_per_signal = generations_per_signal
         self.parents_per_signal = parents_per_signal
         self.mutation_percent = mutation_percent
-
+        
     def decompose(self):
         """Decomposes the signal into multiple IMFs using the specified decomposer"""
         self.imfs = [None]*len(self.signals)
@@ -83,13 +96,27 @@ class SignalCleaner:
 
             # imfs[i] is a list of the imfs of the i-eth signal
             # res[i] is the residual of the decomposition of the i-eth signal
+            
+    def calc_imf_pdfs(self):
+        """Calculates the density function of each imf of each signal"""
+        
+        self.imf_pdfs = [None]*len(self.imfs)
+        for i, signal in enumerate(self.signals):
+            self.imf_pdfs[i] = [None]*len(self.imfs[i])
+            for j, imf in enumerate(self.imfs[i]):
+                self.imf_pdfs[i][j] = self.imfs[i][j].copy()
+                self.imf_pdfs[i][j] = estimate_pdf(self.imfs[i][j])
 
     def __calc_distances(self, metric):
         """Calculates distances between the signal and it's IMFs"""
         
-        self.distances = [None]*len(self.signals)
-        for i, signal in enumerate(self.signals):
-            self.distances[i] = [metric(signal, imf) for imf in self.imfs[i]]
+        #self.distances = [None]*len(self.signals)
+        #for i, signal in enumerate(self.signals):
+            #self.distances[i] = [metric(signal, imf) for imf in self.imfs[i]]
+            
+        self.distances = [None]*len(self.signal_pdfs)
+        for i, sig_pdf in enumerate(self.signal_pdfs):
+            self.distances[i] = [sum(metric(sig_pdf, imf_pdf)) for imf_pdf in self.imf_pdfs[i]]
 
     def imf_selection(self):
         """Separates the IMFs into one noise dominant group and one signal 
@@ -100,7 +127,6 @@ class SignalCleaner:
         self.j_boundary = [None]*len(self.signals)
         for i, dist in enumerate(self.distances):
             self.j_boundary[i] = np.argmax(dist) + 1
-
 
     def __hard_threshold(self, imfs, thresholds):
         """Applies hard thresholding to the specified imfs using the thresholds
@@ -155,7 +181,6 @@ class SignalCleaner:
         n = len(imfs[0]) #number of samples in the signal being subjected to noise removal
         for i in range(len(imfs)):
             thresholds.append( C*np.sqrt(energy[i]*2*np.log(n)) )
-            #print("Threshold: ", thresholds[i], "sqrt arg: ",energy[i]*2*np.log(n), "energy: ", energy[i], "C", C, "BETA", BETA, "RHO", RHO)
             
         return thresholds
 
@@ -226,8 +251,6 @@ class SignalCleaner:
                 mutation_percent_genes=self.mutation_percent,
                 fitness_func=fitness,
                 sol_per_pop=10,
-                #init_range_low=0.1,
-                #random_mutation_min_val=0.1,
                 gene_space=[ {'low': 0.5, 'high': 1.0},{'low': 0.5, 'high': 1.5},{'low': 1.5, 'high': 3.0} ]
             )
             ga.run()
@@ -250,6 +273,7 @@ class SignalCleaner:
 
     def run(self, soft_thresholding = True):
         self.decompose()
+        self.calc_imf_pdfs()
         self.imf_selection()
 
         self.GA()
