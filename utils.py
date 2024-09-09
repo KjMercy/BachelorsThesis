@@ -17,11 +17,22 @@ def SNR_improvement(noisy_signal, signal, predicted):
 def signal_MSE(signal, predicted):
     return np.mean(np.square(predicted - signal))
 
-def estimate_pdf(signal_data, num_bins=50, bandwidth=0.1,):
+def estimate_pdf(signal_data):
     """Function to estimate the PDFs of the signals"""
+        
+    n = len(signal_data)
+    sigma = np.std(signal_data, ddof=1)
+    
+    # Silverman's Rule of Thumb for bandwidth
+    bandwidth = 1.06 * sigma * n**(-1/5)
+    
+    # Sturges' Rule for the number of bins
+    num_bins = int(np.ceil(np.log2(n) + 1))
+    
     kde = gaussian_kde(signal_data, bw_method=bandwidth)
     bin_centers = np.linspace(signal_data.min(), signal_data.max(), num_bins)
     pdf = kde(bin_centers)
+    pdf = pdf/pdf.sum()
     return pdf
 
 class SignalCleaner:
