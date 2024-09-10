@@ -1,4 +1,4 @@
-from PyEMD import EMD, EEMD
+from PyEMD import EMD, CEEMDAN
 import numpy  as np
 import numpy.linalg as LG
 from scipy.special import rel_entr as KL_dist
@@ -56,7 +56,8 @@ class SignalCleaner:
             generations_per_signal, 
             parents_per_signal, 
             mutation_percent,
-            SNR_input
+            SNR_input,
+            hard_threshold=False,
             ):
         
         """
@@ -71,11 +72,11 @@ class SignalCleaner:
             mutation_percent: float indicating the probability of mutation of the of
             a gene (here parameter for calculating the threshold)
             SNR_input: float indicating the input Signal to Noise Ratio
-        
+            hard_threshold: boolean to indicate the usage of either hard or soft thresholding
         """
         
         if ensemble:
-            self.decomposer = EEMD()
+            self.decomposer = CEEMDAN()
         else:
             self.decomposer = EMD()
 
@@ -102,7 +103,7 @@ class SignalCleaner:
         self.imfs = [None]*len(self.signals)
         self.res = [None]*len(self.signals)
         for i, signal in enumerate(self.signals):
-            self.decomposer.eemd(signal, list( range(len(signal)) ))
+            self.decomposer.ceemdan(signal, list( range(len(signal)) ))
             self.imfs[i], self.res[i] = self.decomposer.get_imfs_and_residue()
 
             # imfs[i] is a list of the imfs of the i-eth signal
@@ -213,13 +214,15 @@ class SignalCleaner:
         def fitness(ga_instance, solution, solution_idx):
             """The Signal To Noise Improvement (SNR improvement) is used as
             an objective function, or fitness"""
+            
+            thresholding_func = self.__hard_threshold if self.hard_threshold else self.__soft_threshold
 
             i = signal_index
             boundary = self.j_boundary[i]
             #sum_signal_dominant_imfs = np.sum(self.imfs[i, boundary:], axis=0)
             sum_signal_dominant_imfs = np.sum(self.imfs[i][boundary:], axis=0)
 
-            thresholded_imfs = self.__hard_threshold(
+            thresholded_imfs = self.thresholding_func(
                 self.imfs[i][:boundary],
                 self.__calc_single_signal_thresholds(
                     self.imfs[i][:boundary],
@@ -282,7 +285,7 @@ class SignalCleaner:
 
             self.y_pred[i] = sum_thresholded_imfs + sum_signal_dominant_imfs + self.res[i]
 
-    def run(self, soft_thresholding = True):
+    def run(self, hard_thresholding = False):
         self.decompose()
         self.calc_imf_pdfs()
         self.imf_selection()
