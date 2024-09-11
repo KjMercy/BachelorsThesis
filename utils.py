@@ -17,6 +17,22 @@ def SNR_improvement(noisy_signal, signal, predicted):
 def signal_MSE(signal, predicted):
     return np.mean(np.square(predicted - signal))
 
+def PRD(y, y_pred):
+    """
+    Percent Root Mean Square Difference (PRD)
+    """
+    
+    num = np.sqrt(np.sum(np.square(y - y_pred)))
+    den = np.sqrt(np.sum(np.square(y)))
+    
+    return 100 * (num / den)
+
+def MAE(y, y_pred):
+    """
+    Maximum Absolute Error (MAE)
+    """
+    return np.max(np.abs(y - y_pred))
+
 def estimate_pdf(signal_data):
     """Function to estimate the PDFs of the signals"""
         
@@ -75,8 +91,9 @@ class SignalCleaner:
             hard_threshold: boolean to indicate the usage of either hard or soft thresholding
         """
         
+        self.ensemble = ensemble
         if ensemble:
-            self.decomposer = CEEMDAN()
+            self.decomposer = CEEMDAN(trials=300)
         else:
             self.decomposer = EMD()
 
@@ -97,13 +114,18 @@ class SignalCleaner:
         self.gen_per_signal = generations_per_signal
         self.parents_per_signal = parents_per_signal
         self.mutation_percent = mutation_percent
+        self.hard_threshold = hard_threshold
         
     def decompose(self):
         """Decomposes the signal into multiple IMFs using the specified decomposer"""
         self.imfs = [None]*len(self.signals)
         self.res = [None]*len(self.signals)
         for i, signal in enumerate(self.signals):
-            self.decomposer.ceemdan(signal, list( range(len(signal)) ))
+            if self.ensemble:
+                self.decomposer.ceemdan(signal, list( range(len(signal)) ))
+            else:
+                self.decomposer.emd(signal, list( range(len(signal)) ))
+            
             self.imfs[i], self.res[i] = self.decomposer.get_imfs_and_residue()
 
             # imfs[i] is a list of the imfs of the i-eth signal
@@ -164,14 +186,14 @@ class SignalCleaner:
                 res.append(0)
         return res
 
-    def apply_thresholding(self, soft = False):
+    def apply_thresholding(self, hard_thresholding = False):
         """Applies thresholding to all the noise-dominant IMF groups (i.e the noise
         dominant IMFs for each signal). If soft is True, it applies soft-thresholding"""
 
         self.thresholded_imfs = [None]*len(self.signals)
         for i, _ in enumerate(self.signals):
 
-            if soft:
+            if not hard_thresholding:
                 self.thresholded_imfs[i] = self.__soft_threshold(
                     self.imfs[i][:self.j_boundary[i]],
                     self.thresholds[i]
@@ -222,7 +244,7 @@ class SignalCleaner:
             #sum_signal_dominant_imfs = np.sum(self.imfs[i, boundary:], axis=0)
             sum_signal_dominant_imfs = np.sum(self.imfs[i][boundary:], axis=0)
 
-            thresholded_imfs = self.thresholding_func(
+            thresholded_imfs = thresholding_func(
                 self.imfs[i][:boundary],
                 self.__calc_single_signal_thresholds(
                     self.imfs[i][:boundary],
@@ -292,6 +314,6 @@ class SignalCleaner:
 
         self.GA()
         self.calc_thresholds()
-        self.apply_thresholding(soft_thresholding)
+        self.apply_thresholding(hard_thresholding)
         self.predict()
         
